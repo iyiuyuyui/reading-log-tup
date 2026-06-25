@@ -1,0 +1,93 @@
+/* Home Page Specific Styles */
+.hero-section {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-image: url('https://cdn.phototourl.com/free/2026-06-09-ab181203-5158-4080-9124-effda93a4aa1.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+.hero-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, rgba(42, 42, 114, 0.7), rgba(0, 159, 253, 0.5));
+  z-index: 2;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  color: var(--color-text-white);
+  padding: 2rem;
+  max-width: 800px;
+}
+
+.school-logo {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid var(--glass-border);
+  box-shadow: var(--shadow-lg);
+  margin-bottom: 2rem;
+  background-color: white;
+}
+
+.title-main {
+  font-size: 4rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  text-shadow: 2px 4px 10px rgba(0, 0, 0, 0.3);
+  letter-spacing: 1px;
+}
+
+.title-sub {
+  font-size: 2rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--color-primary);
+  text-shadow: 1px 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+.title-school {
+  font-size: 1.5rem;
+  font-weight: 400;
+  margin-bottom: 3rem;
+  opacity: 0.9;
+  text-shadow: 1px 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+.btn-enter {
+  font-size: 1.25rem;
+  padding: 1rem 3rem;
+  border-radius: var(--border-radius-full);
+  background: linear-gradient(135deg, var(--color-secondary), #0077b6);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn-enter:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 12px 25px rgba(135, 206, 235, 0.4);
+  background: linear-gradient(135deg, #0077b6, var(--color-secondary));
+}
+
+@media (max-width: 768px) {
+  .title-main { font-size: 3rem; }
+  .title-sub { font-size: 1.5rem; }
+  .title-school { font-size: 1.2rem; }
+  .school-logo { width: 120px; height: 120px; }
+}

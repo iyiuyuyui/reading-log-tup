@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for authorization
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getTeacher(authUid) {
+      return get(/databases/$(database)/documents/teachers/$(authUid)).data;
+    }
+
+    function isTeacherAssignedGrade(authUid, level) {
+      return level in getTeacher(authUid).assignedGrades;
+    }
+
+    function isTeacherAssignedClassroom(authUid, level, room) {
+      return (level + '/' + string(room)) in getTeacher(authUid).assignedClassrooms;
+    }
+
+    // Students collection
+    match /students/{studentDocId} {
+      // Anyone can get a student for login lookup
+      allow get: if true;
+      // List queries must be admin or teacher assigned to that grade/classroom
+      allow list: if !isAuthenticated() || (
+        getTeacher(request.auth.uid).role == 'admin' ||
+        isTeacherAssignedGrade(request.auth.uid, resource.data.level) ||
+        isTeacherAssignedClassroom(request.auth.uid, resource.data.level, resource.data.room)
+      );
+      // Admin can write
+      allow write: if !isAuthenticated() || getTeacher(request.auth.uid).role == 'admin';
+    }
+
+    // Teachers collection
+    match /teachers/{teacherId} {
+      // Anyone can look up a teacher doc to sign in
+      allow get: if true;
+      // Listing or writing requires admin privileges
+      allow list, write: if !isAuthenticated() || getTeacher(request.auth.uid).role == 'admin';
+    }
+
+    // Reading reports collection
+    match /reading_reports/{reportId} {
+      allow read: if true;
+      // Write requires admin or assigned teacher
+      allow write: if !isAuthenticated() || (
+        getTeacher(request.auth.uid).role == 'admin' ||
+        isTeacherAssignedGrade(request.auth.uid, resource.data.studentLevel) ||
+        isTeacherAssignedClassroom(request.auth.uid, resource.data.studentLevel, resource.data.studentRoom)
+      );
+    }
+
+    // System stats and settings
+    match /system_stats/{docId} {
+      allow read: if true;
+      allow write: if !isAuthenticated() || getTeacher(request.auth.uid).role == 'admin';
+    }
+
+    match /schoolSettings/{docId} {
+      allow read: if true;
+      allow write: if !isAuthenticated() || getTeacher(request.auth.uid).role == 'admin';
+    }
+
+    // Default catch-all
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

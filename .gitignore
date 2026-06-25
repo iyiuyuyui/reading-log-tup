@@ -1,0 +1,17 @@
+# Dependency directories
+node_modules/
+
+# Build outputs
+dist/
+
+# Firebase cache
+.firebase/
+
+# Local database files / archives
+*.zip
+*.xlsx
+*.csv
+
+# Logs
+logs
+*.log

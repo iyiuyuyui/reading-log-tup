@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สมุดบันทึกรักการอ่าน | แผงควบคุมนักเรียน</title>
+    <link rel="icon" type="image/png" href="school_logo_round.png">
+    
+    <!-- Google Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    
+    <!-- Supabase Client JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+    <!-- App Container -->
+    <div class="app-layout">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-brand">
+                <span class="material-icons-round font-icon">book</span>
+                <h1>บันทึกรักการอ่าน</h1>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-left:auto; margin-right:1rem;">
+                <label for="globalYearSelect" style="font-size:0.9rem; font-weight:600; color:white;">ปีการศึกษา:</label>
+                <select id="globalYearSelect" class="form-control" style="width:140px; padding:0.25rem 0.5rem; border-radius:var(--border-radius-sm); font-weight:600; cursor:pointer;" onchange="handleGlobalYearChange(this.value)"></select>
+            </div>
+            <div class="user-meta" id="headerUserMeta">
+                <!-- Injected via JS -->
+            </div>
+            <button class="btn-logout" onclick="logout()">
+                <span class="material-icons-round">logout</span>
+                <span>ออกจากระบบ</span>
+            </button>
+        </header>
+
+        <!-- Main Dashboard View -->
+        <main class="dashboard-main animate-fade-in">
+            <!-- Top Summary Cards -->
+            <section class="summary-cards">
+                <div class="stat-card">
+                    <span class="material-icons-round stat-icon color-blue">auto_stories</span>
+                    <div class="stat-info">
+                        <span class="stat-label">บันทึกแล้ว</span>
+                        <span class="stat-val" id="statBooks">0 เล่ม</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <span class="material-icons-round stat-icon color-purple">text_fields</span>
+                    <div class="stat-info">
+                        <span class="stat-label">จำนวนหน้าสะสม</span>
+                        <span class="stat-val" id="statPages">0 หน้า</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <span class="material-icons-round stat-icon color-pink">schedule</span>
+                    <div class="stat-info">
+                        <span class="stat-label">เวลาอ่านรวม</span>
+                        <span class="stat-val" id="statTime">0 นาที</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <span class="material-icons-round stat-icon color-gold">stars</span>
+                    <div class="stat-info">
+                        <span class="stat-label">คะแนนรวม</span>
+                        <span class="stat-val" id="statScore">0 คะแนน</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Badges Section -->
+            <section class="badges-wrapper card mb-3">
+                <h3 class="section-title"><span class="material-icons-round text-icon">workspace_premium</span>ตราเกียรติยศนักอ่าน</h3>
+                <div class="badges-list" id="badgesList">
+                    <!-- Dynamic badges go here -->
+                </div>
+            </section>
+
+            <!-- Info Accordion Menu -->
+            <section class="accordion-section mb-3">
+                <div class="accordion-item">
+                    <button class="accordion-trigger" onclick="toggleAccordion('introAcc')">
+                        <span class="material-icons-round text-icon">description</span>
+                        <span>คำนำ (ข้อความต้อนรับ)</span>
+                        <span class="material-icons-round arrow-icon" id="introAccArrow">expand_more</span>
+                    </button>
+                    <div class="accordion-content" id="introAccContent">
+                        <p>ยินดีต้อนรับนักเรียนทุกคนเข้าสู่โครงการ "บันทึกรักการอ่าน" กลุ่มสาระการเรียนรู้ภาษาไทย โรงเรียนเตรียมอุดมศึกษาพัฒนาการ ปทุมธานี การอ่านหนังสือเป็นรากฐานของการเรียนรู้และการพัฒนาตนเอง ขอให้นักเรียนมุ่งมั่นและสนุกสนานกับการอ่านหนังสือที่มีประโยชน์สะสมประสบการณ์ในโลกของวรรณกรรมและสาระความรู้ต่างๆ</p>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <button class="accordion-trigger" onclick="toggleAccordion('detailsAcc')">
+                        <span class="material-icons-round text-icon">help_outline</span>
+                        <span>รายละเอียดโครงการ & เกณฑ์คะแนน</span>
+                        <span class="material-icons-round arrow-icon" id="detailsAccArrow">expand_more</span>
+                    </button>
+                    <div class="accordion-content" id="detailsAccContent">
+                        <p>โครงการบันทึกรักการอ่านนี้ช่วยส่งเสริมคุณธรรมจริยธรรม ทักษะภาษาไทย และการสรุปความรู้</p>
+                        <ul class="mt-1">
+                            <li>ส่งบันทึกการอ่านหนังสือทั่วไป 1 เรื่อง = 1 บันทึก</li>
+                            <li>ครูผู้ตรวจจะเป็นผู้ประเมินให้คะแนนเต็ม 10 คะแนน พร้อมดาวสูงสุด 5 ดวง</li>
+                            <li>สะสมจำนวนหน้าอ่านและคะแนนเพื่อปลดล็อกตราเกียรติยศต่างๆ</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <button class="accordion-trigger" onclick="toggleAccordion('tipsAcc')">
+                        <span class="material-icons-round text-icon">tips_and_updates</span>
+                        <span>เทคนิคการเป็นนักอ่านที่ดี</span>
+                        <span class="material-icons-round arrow-icon" id="tipsAccArrow">expand_more</span>
+                    </button>
+                    <div class="accordion-content" id="tipsAccContent">
+                        <p>1. กำหนดเวลาอ่านประจำในแต่ละวัน เช่น 15-30 นาทีก่อนนอน</p>
+                        <p>2. จดบันทึกคำศัพท์ใหม่หรือประโยคที่ชื่นชอบไว้เสมอ</p>
+                        <p>3. ฝึกสรุปใจความสำคัญโดยการใช้แผนภาพโครงเรื่อง หรือการตั้งคำถาม ใคร ทำอะไร ที่ไหน เมื่อไหร่ อย่างไร</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Buttons Action Panel -->
+            <section class="action-panel mb-3">
+                <button class="btn btn-primary btn-lg" onclick="openReadingForm()">
+                    <span class="material-icons-round btn-icon">add_circle</span>
+                    <span>บันทึกการอ่าน</span>
+                </button>
+            </section>
+
+            <!-- History Logs Table -->
+            <section class="logs-section card">
+                <h3 class="section-title"><span class="material-icons-round text-icon">history</span>ประวัติบันทึกการอ่านทั้งหมดของคุณ</h3>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ครั้งที่</th>
+                                <th>วันที่บันทึก</th>
+                                <th>ชื่อหนังสือ</th>
+                                <th>ประเภท</th>
+                                <th>คะแนน / ดาว</th>                            <th>สถานะ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center">กำลังโหลดข้อมูลประวัติการบันทึก...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- modal overlay for reading log entry form -->
+    <div class="modal-overlay" id="readingModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2>➕ ส่งบันทึกรักการอ่าน</h2>
+                <button class="close-btn" onclick="closeReadingForm()">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+            
+            <form id="readingLogForm" class="modal-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="entryNumber">ครั้งที่</label>
+                        <input type="number" id="entryNumber" class="form-control" readonly value="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="readDate">วันที่อ่าน</label>
+                        <input type="date" id="readDate" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="bookTitle">ชื่อหนังสือ</label>
+                        <input type="text" id="bookTitle" class="form-control" required placeholder="เช่น พ่อรวยสอนลูก">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="author">ผู้แต่ง / ผู้เขียน</label>
+                        <input type="text" id="author" class="form-control" required placeholder="เช่น โรเบิร์ต คิโยซากิ">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="publisher">สำนักพิมพ์</label>
+                        <input type="text" id="publisher" class="form-control" required placeholder="เช่น ซีเอ็ดยูเคชั่น">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="bookType">ประเภทหนังสือ</label>
+                        <select id="bookType" class="form-control" required>
+                            <option value="ทั่วไป">ทั่วไป / ความรู้ทั่วไป</option>
+                            <option value="นิทาน">นิทาน / เรื่องสั้น</option>
+                            <option value="นวนิยาย">นวนิยาย / การ์ตูน</option>
+                            <option value="วิชาการ">วิชาการ / ตำราเรียน</option>
+                            <option value="ธรรมะ">ธรรมะ / ปรัชญา</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="pageCount">จำนวนหน้า</label>
+                        <input type="number" id="pageCount" class="form-control" min="1" required placeholder="เช่น 24">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="readingTime">เวลาที่ใช้อ่าน (นาที)</label>
+                        <input type="number" id="readingTime" class="form-control" min="1" required placeholder="เช่น 45">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="summary">เนื้อหาโดยสรุป</label>
+                    <textarea id="summary" class="form-control" rows="3" required placeholder="สรุปเนื้อหาคร่าวๆ ของหนังสือเล่มนี้..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="lesson">ข้อคิดที่ได้รับ</label>
+                    <textarea id="lesson" class="form-control" rows="2" required placeholder="คุณได้เรียนรู้หรือประทับใจอะไรบ้างจากหนังสือเล่มนี้..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="application">สิ่งที่จะนำไปปรับใช้</label>
+                    <textarea id="application" class="form-control" rows="2" required placeholder="คุณจะนำข้อคิดหรือความรู้ที่ได้ไปปรับใช้ในชีวิตประจำวันอย่างไร..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="reason">เหตุผลที่เลือกอ่าน</label>
+                    <textarea id="reason" class="form-control" rows="2" required placeholder="ทำไมคุณถึงเลือกอ่านหนังสือเล่มนี้..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="newVocabulary">คำศัพท์ใหม่ / คำยากที่พบ (และคำแปล)</label>
+                    <textarea id="newVocabulary" class="form-control" rows="2" placeholder="เช่น กตัญญู หมายถึง รู้คุณค่าความดี..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="bookFile">แนบไฟล์รูปหนังสือหรือไฟล์ PDF ประกอบ</label>
+                    <input type="file" id="bookFile" class="form-control" accept="image/*,application/pdf">
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 mt-2">🚀 ส่งบันทึกการอ่าน</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- jsPDF and html2canvas CDNs for Thai PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Setup Application Scripts -->
+    <script src="js/supabase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/telegram.js"></script>
+    <script src="js/image-overlay.js"></script>
+    <script src="js/badges.js"></script>
+    <script src="js/academic-year.js"></script>
+    <script src="js/student.js"></script>
+</body>
+</html>

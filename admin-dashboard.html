@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบควบคุมผู้ดูแลระบบ | บันทึกรักการอ่าน</title>
+    <link rel="icon" type="image/png" href="school_logo_round.png">
+    
+    <!-- Google Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    
+    <!-- Supabase Client JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- SheetJS for Excel Import/Export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    
+    <!-- Chart.js for stats -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <style>
+        .admin-layout {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            min-height: 100vh;
+        }
+        .admin-sidebar {
+            background-color: #2a2a72;
+            color: white;
+            padding: 1.5rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            padding: 0 0.5rem;
+        }
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            border-radius: var(--border-radius-sm);
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .sidebar-link:hover, .sidebar-link.active {
+            color: white;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .admin-content {
+            padding: 2rem;
+            background-color: #f8f9fa;
+            overflow-y: auto;
+        }
+        .admin-section {
+            display: none;
+        }
+        .admin-section.active {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .chart-box {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: var(--border-radius-md);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 1.5rem;
+        }
+        @media (max-width: 768px) {
+            .admin-layout {
+                grid-template-columns: 1fr;
+            }
+            .admin-sidebar {
+                padding: 1rem;
+                gap: 0.5rem;
+            }
+            .sidebar-brand {
+                margin-bottom: 1rem;
+            }
+            .sidebar-link {
+                padding: 0.5rem 0.75rem;
+                font-size: 0.9rem;
+            }
+            .teacher-grid-admin {
+                grid-template-columns: 1fr !important;
+            }
+            .admin-content {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="admin-sidebar">
+            <div class="sidebar-brand">
+                <span class="material-icons-round">admin_panel_settings</span>
+                <h2>Admin Control</h2>
+            </div>
+            <a href="#" class="sidebar-link active" data-target="dashboard">
+                <span class="material-icons-round">dashboard</span>
+                <span>แดชบอร์ดสถิติ</span>
+            </a>
+            <a href="#" class="sidebar-link" data-target="students">
+                <span class="material-icons-round">people</span>
+                <span>จัดการข้อมูลนักเรียน</span>
+            </a>
+            <a href="#" class="sidebar-link" data-target="teachers">
+                <span class="material-icons-round">badge</span>
+                <span>จัดการข้อมูลครู</span>
+            </a>
+            <a href="#" class="sidebar-link" data-target="settings">
+                <span class="material-icons-round">settings</span>
+                <span>ตั้งค่าโครงการ</span>
+            </a>
+            <a href="#" class="sidebar-link" data-target="academicYears">
+                <span class="material-icons-round">calendar_today</span>
+                <span>จัดการปีการศึกษา</span>
+            </a>
+            <a href="#" class="sidebar-link" data-target="database">
+                <span class="material-icons-round">manage_search</span>
+                <span>วิเคราะห์ฐานข้อมูล</span>
+            </a>
+            <div style="margin-top: auto; padding: 1rem 0;">
+                <button class="btn btn-logout w-100" onclick="logout()">
+                    <span class="material-icons-round">logout</span>
+                    <span>ออกจากระบบ</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="admin-content">
+            <!-- Global Header Top-Bar with Year Selector -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; background:white; padding:0.75rem 1.5rem; border-radius:var(--border-radius-md); box-shadow:var(--shadow-sm);">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span class="material-icons-round" style="color:var(--color-primary); font-size:1.6rem;">settings_system_daydream</span>
+                    <h3 style="margin:0; color:#2a2a72;">ระบบควบคุมผู้ดูแลระบบ</h3>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <label for="globalYearSelect" style="font-size:0.9rem; font-weight:600; color:#4b5563;">ปีการศึกษาที่เรียกดู:</label>
+                    <select id="globalYearSelect" class="form-control" style="width:180px; padding:0.35rem; border-radius:var(--border-radius-sm); font-weight:600; cursor:pointer;" onchange="handleGlobalYearChange(this.value)"></select>
+                </div>
+            </div>
+            <!-- 1. Stats Dashboard Section -->
+            <section class="admin-section active" id="dashboardSec">
+                <h2 class="mb-3">สถิติภาพรวมโรงเรียน</h2>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="material-icons-round stat-icon color-blue">group</span>
+                        <div class="stat-info">
+                            <span class="stat-label">นักเรียนทั้งหมด</span>
+                            <span class="stat-val" id="totalStudents">0 คน</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="material-icons-round stat-icon" style="background-color: rgba(255, 182, 193, 0.2); color: #ff6b6b;">school</span>
+                        <div class="stat-info">
+                            <span class="stat-label">คุณครูทั้งหมด</span>
+                            <span class="stat-val" id="totalTeachers">0 คน</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="material-icons-round stat-icon color-purple">done_all</span>
+                        <div class="stat-info">
+                            <span class="stat-label">บันทึกรักการอ่าน - อนุมัติแล้ว</span>
+                            <span class="stat-val" id="approvedReports">0 รายการ</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="material-icons-round stat-icon color-pink">pending_actions</span>
+                        <div class="stat-info">
+                            <span class="stat-label">บันทึกรักการอ่าน - รอตรวจ</span>
+                            <span class="stat-val" id="pendingReports">0 รายการ</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grade and Classroom Breakdown Grid -->
+                <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:1.5rem; margin-bottom:1.5rem;" class="breakdown-grid">
+                    <!-- Grade counts -->
+                    <div class="card">
+                        <h3 class="mb-3" style="display:flex; align-items:center; gap:0.5rem; color:#2a2a72;">
+                            <span class="material-icons-round" style="font-size:1.4rem;">bar_chart</span> จำนวนนักเรียนรายระดับชั้น
+                        </h3>
+                        <div class="table-container">
+                            <table class="data-table" style="font-size:0.9rem;">
+                                <thead>
+                                    <tr>
+                                        <th>ระดับชั้น</th>
+                                        <th>จำนวนนักเรียน</th>
+                                        <th>สัดส่วน (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="gradeBreakdownBody">
+                                    <tr><td colspan="3" class="text-center">กำลังคำนวณข้อมูล...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Classroom counts scrollbox -->
+                    <div class="card">
+                        <h3 class="mb-3" style="display:flex; align-items:center; gap:0.5rem; color:#2a2a72;">
+                            <span class="material-icons-round" style="font-size:1.4rem;">room</span> จำนวนนักเรียนรายห้องเรียน
+                        </h3>
+                        <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                            <table class="data-table" style="font-size:0.9rem;">
+                                <thead>
+                                    <tr>
+                                        <th>ระดับชั้น / ห้อง</th>
+                                        <th>จำนวนนักเรียน</th>
+                                        <th>ระดับชั้น / ห้อง</th>
+                                        <th>จำนวนนักเรียน</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="classroomBreakdownBody">
+                                    <tr><td colspan="4" class="text-center">กำลังคำนวณข้อมูล...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-box">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;" class="mb-3">
+                        <h3 style="margin:0; display:flex; align-items:center; gap:0.5rem; color:#2a2a72;">
+                            <span class="material-icons-round" style="font-size:1.4rem;">analytics</span> สถิติวิเคราะห์แนวโน้มการอ่าน
+                        </h3>
+                        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                            <select id="chartTimeframe" class="form-control" style="width:140px; padding:0.4rem; font-size:0.9rem; border-radius: var(--border-radius-sm);" onchange="updateAnalyticsChart()">
+                                <option value="daily">รายวัน (7 วันล่าสุด)</option>
+                                <option value="weekly" selected>รายสัปดาห์ (8 สัปดาห์)</option>
+                                <option value="monthly">รายเดือน</option>
+                                <option value="yearly">รายปี</option>
+                            </select>
+                            <select id="chartType" class="form-control" style="width:120px; padding:0.4rem; font-size:0.9rem; border-radius: var(--border-radius-sm);" onchange="updateAnalyticsChart()">
+                                <option value="line">กราฟเส้น (Line)</option>
+                                <option value="bar">กราฟแท่ง (Bar)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="position: relative; height:320px; width:100%;">
+                        <canvas id="weeklyChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card mt-3" style="max-width: 600px;">
+                    <h3 class="mb-3"><span class="material-icons-round text-icon" style="vertical-align:middle;">send</span> ตั้งค่า Telegram รายระดับชั้น (ม.1 - ม.6)</h3>
+                    <p style="font-size:0.85rem; color:var(--color-text-light); margin-bottom:1rem;">หากระดับชั้นใดไม่มีการตั้งค่า ระบบจะนำการตั้งค่า Telegram ส่วนกลางด้านบนไปใช้งานแทนโดยอัตโนมัติ</p>
+                    <form id="telegramConfigsForm">
+                        <div style="overflow-x:auto;">
+                            <table class="table" style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th>ระดับชั้น</th>
+                                        <th>Bot Token</th>
+                                        <th>Chat ID</th>
+                                        <th style="width: 100px; text-align: center;">ทดสอบ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>ม.1</strong></td>
+                                        <td><input type="password" id="tgToken_M1" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td><input type="text" id="tgChatId_M1" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td style="text-align: center;"><button type="button" class="btn" style="background:#f59e0b; color:white; padding:0.25rem 0.5rem; font-size:0.75rem; border-radius:var(--border-radius-sm); border:none; cursor:pointer;" onclick="testLevelTelegramConfig('M1')">🔔 ทดสอบ</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ม.2</strong></td>
+                                        <td><input type="password" id="tgToken_M2" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td><input type="text" id="tgChatId_M2" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td style="text-align: center;"><button type="button" class="btn" style="background:#f59e0b; color:white; padding:0.25rem 0.5rem; font-size:0.75rem; border-radius:var(--border-radius-sm); border:none; cursor:pointer;" onclick="testLevelTelegramConfig('M2')">🔔 ทดสอบ</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ม.3</strong></td>
+                                        <td><input type="password" id="tgToken_M3" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td><input type="text" id="tgChatId_M3" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td style="text-align: center;"><button type="button" class="btn" style="background:#f59e0b; color:white; padding:0.25rem 0.5rem; font-size:0.75rem; border-radius:var(--border-radius-sm); border:none; cursor:pointer;" onclick="testLevelTelegramConfig('M3')">🔔 ทดสอบ</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ม.4</strong></td>
+                                        <td><input type="password" id="tgToken_M4" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td><input type="text" id="tgChatId_M4" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td style="text-align: center;"><button type="button" class="btn" style="background:#f59e0b; color:white; padding:0.25rem 0.5rem; font-size:0.75rem; border-radius:var(--border-radius-sm); border:none; cursor:pointer;" onclick="testLevelTelegramConfig('M4')">🔔 ทดสอบ</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ม.5</strong></td>
+                                        <td><input type="password" id="tgToken_M5" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td><input type="text" id="tgChatId_M5" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td style="text-align: center;"><button type="button" class="btn" style="background:#f59e0b; color:white; padding:0.25rem 0.5rem; font-size:0.75rem; border-radius:var(--border-radius-sm); border:none; cursor:pointer;" onclick="testLevelTelegramConfig('M5')">🔔 ทดสอบ</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ม.6</strong></td>
+                                        <td><input type="password" id="tgToken_M6" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td><input type="text" id="tgChatId_M6" class="form-control" placeholder="ใช้ค่าเริ่มต้นส่วนกลาง"></td>
+                                        <td style="text-align: center;"><button type="button" class="btn" style="background:#f59e0b; color:white; padding:0.25rem 0.5rem; font-size:0.75rem; border-radius:var(--border-radius-sm); border:none; cursor:pointer;" onclick="testLevelTelegramConfig('M6')">🔔 ทดสอบ</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 mt-2">💾 บันทึกการตั้งค่าแยกระดับชั้น</button>
+                    </form>
+                </div>
+
+                <div class="card mt-3" style="max-width: 600px; border: 1px solid #fecaca; background: rgba(254, 226, 226, 0.15);">
+                    <h3 class="mb-3" style="color: #ef4444;"><span class="material-icons-round text-icon" style="vertical-align:middle; color: #ef4444;">warning</span> จัดการฐานข้อมูล (Database Tools)</h3>
+                    <p style="font-size:0.85rem; color:var(--color-text-light); margin-bottom:1rem;">เครื่องมือสำหรับจัดการฐานข้อมูลนักเรียน สำหรับใช้เริ่มต้นปีการศึกษาใหม่ หรือใช้ทดสอบระบบ</p>
+                    <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                        <button type="button" onclick="deleteAllStudents()" class="btn btn-danger" style="flex:1; min-width:200px;">
+                            <span class="material-icons-round" style="font-size:1.1rem; vertical-align:middle;">delete_sweep</span> ล้างข้อมูลนักเรียนทั้งหมด
+                        </button>
+                        <button type="button" id="btnSeedMock" onclick="seedMockStudents()" class="btn" style="flex:1; min-width:200px; background:#10b981; color:white; border:none; border-radius:var(--border-radius-md); cursor:pointer; font-weight:600;">
+                            <span class="material-icons-round" style="font-size:1.1rem; vertical-align:middle;">playlist_add</span> นำเข้าข้อมูลนักเรียนจำลอง (100 คน)
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. Student Management Section -->
+            <section class="admin-section" id="studentsSec">
+                <div style="display:flex; justify-content:space-between; align-items:center;" class="mb-3">
+                    <h2>จัดการข้อมูลนักเรียน</h2>
+                    <div style="display:flex; gap:1rem; align-items:center;">
+                        <input type="file" id="excelFile" style="display: none;" accept=".xlsx, .xls, .csv" onchange="importExcelData(event)">
+                        <button class="btn btn-primary" onclick="document.getElementById('excelFile').click()">
+                            <span class="material-icons-round" style="vertical-align:middle; font-size:1.2rem;">file_upload</span> นำเข้า Excel (.xlsx)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Dataset Banner -->
+                <div id="activeDatasetBanner" class="card mb-3" style="background:rgba(135, 206, 235, 0.1); border:1px solid rgba(135, 206, 235, 0.2); padding:1rem; border-radius:var(--border-radius-sm); margin-bottom: 1.5rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                        <div>
+                            <span class="material-icons-round" style="vertical-align:middle; color:#0077b6; font-size:1.25rem;">dataset</span>
+                            <strong style="color:#0077b6;">ชุดข้อมูลนักเรียนปัจจุบัน:</strong> 
+                            <span id="activeDatasetName" style="font-weight:600;">กำลังโหลด...</span> 
+                            (<span id="activeDatasetRecords">-</span> รายการ)
+                        </div>
+                        <div style="font-size:0.85rem; color:var(--color-text-light);">
+                            นำเข้าเมื่อ: <span id="activeDatasetDate">-</span> โดย <span id="activeDatasetUser">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;" class="mb-3">
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                            <!-- Search -->
+                            <input type="text" id="studentSearch" class="form-control" placeholder="🔍 ค้นหา รหัส, ชื่อ-นามสกุล..." style="width:250px; padding:0.5rem 1rem; font-size:0.9rem; border-radius: var(--border-radius-sm);" oninput="applyFiltersAndRenderTable()">
+                            <!-- Filters -->
+                            <select id="filterLevel" class="form-control" style="width:130px; padding:0.5rem; font-size:0.9rem; border-radius: var(--border-radius-sm);" onchange="handleLevelFilterChange()">
+                                <option value="">ระดับชั้นทั้งหมด</option>
+                                <option value="ม.1">ม.1</option>
+                                <option value="ม.2">ม.2</option>
+                                <option value="ม.3">ม.3</option>
+                                <option value="ม.4">ม.4</option>
+                                <option value="ม.5">ม.5</option>
+                                <option value="ม.6">ม.6</option>
+                            </select>
+                            <select id="filterRoom" class="form-control" style="width:110px; padding:0.5rem; font-size:0.9rem; border-radius: var(--border-radius-sm);" onchange="applyFiltersAndRenderTable()">
+                                <option value="">ห้องทั้งหมด</option>
+                            </select>
+                        </div>
+                        
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                            <button class="btn" style="background:#10b981; color:white; padding:0.5rem 1rem; font-size:0.9rem;" onclick="exportStudentsToExcel()">
+                                <span class="material-icons-round" style="vertical-align:middle; font-size:1.1rem;">file_download</span> Excel
+                            </button>
+                            <button class="btn" style="background:#8b5cf6; color:white; padding:0.5rem 1rem; font-size:0.9rem;" onclick="exportStudentsToPDF()">
+                                <span class="material-icons-round" style="vertical-align:middle; font-size:1.1rem;">picture_as_pdf</span> PDF
+                            </button>
+                            <button class="btn" style="background:#dc2626; color:white; padding:0.5rem 1rem; font-size:0.9rem;" onclick="deleteAllStudents()">
+                                <span class="material-icons-round" style="vertical-align:middle; font-size:1.1rem;">delete_forever</span> ลบทั้งหมด
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Bulk actions bar (hidden by default) -->
+                    <div id="bulkActionsBar" style="display:none; background:rgba(220, 38, 38, 0.1); border:1px solid rgba(220, 38, 38, 0.2); padding:0.75rem 1rem; border-radius:var(--border-radius-sm); align-items:center; justify-content:space-between; margin-bottom: 1rem;">
+                        <span style="color:#dc2626; font-weight:600;"><span id="selectedCount">0</span> รายการที่เลือก</span>
+                        <button class="btn" style="background:#dc2626; color:white; padding:0.4rem 1rem; font-size:0.85rem;" onclick="deleteSelectedStudents()">
+                            <span class="material-icons-round" style="vertical-align:middle; font-size:1rem;">delete</span> ลบรายการที่เลือก
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px; text-align:center;"><input type="checkbox" id="selectAllStudents" onchange="toggleSelectAllStudents(this)"></th>
+                                    <th>รหัสนักเรียน</th>
+                                    <th>ชื่อ-นามสกุล</th>
+                                    <th>ระดับชั้น</th>
+                                    <th>ห้อง</th>
+                                    <th>เลขที่</th>
+                                    <th>ไฟล์นำเข้า / เวอร์ชัน</th>
+                                    <th>การจัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminStudentsTable">
+                                <tr>
+                                    <td colspan="8" class="text-center">กำลังโหลดข้อมูลนักเรียน...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination Controls -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.5rem; flex-wrap:wrap; gap:1rem;">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.9rem; color:var(--color-text-light);">แสดง</span>
+                            <select id="pageSizeSelect" class="form-control" style="width:80px; padding:0.3rem; font-size:0.9rem; border-radius: var(--border-radius-sm);" onchange="changePageSize()">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                            <span style="font-size:0.9rem; color:var(--color-text-light);">รายการต่อหน้า</span>
+                        </div>
+                        
+                        <div style="display:flex; align-items:center; gap:1rem;">
+                            <span style="font-size:0.9rem; color:var(--color-text-light);" id="paginationInfo">หน้า 1 จาก 1</span>
+                            <div style="display:flex; gap:0.25rem;">
+                                <button class="btn" style="padding:0.4rem 0.8rem; font-size:0.9rem; background:#e5e7eb; color:#4b5563; border-radius: var(--border-radius-sm);" id="btnPrevPage" onclick="prevPage()">ก่อนหน้า</button>
+                                <button class="btn" style="padding:0.4rem 0.8rem; font-size:0.9rem; background:#e5e7eb; color:#4b5563; border-radius: var(--border-radius-sm);" id="btnNextPage" onclick="nextPage()">ถัดไป</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Settings Section -->
+            <section class="admin-section" id="settingsSec">
+                <h2 class="mb-3">ตั้งค่าระบบ & Telegram</h2>
+                <div class="card" style="max-width: 600px;">
+                    <form id="settingsForm">
+                        <div class="form-group">
+                            <label class="form-label" for="currentYear">ปีการศึกษาปัจจุบัน</label>
+                            <input type="text" id="currentYear" class="form-control" value="2568">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="telegramToken">Telegram Bot Token</label>
+                            <input type="password" id="telegramToken" class="form-control" placeholder="ใส่ Bot Token จาก BotFather">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="telegramChatId">Telegram Chat ID</label>
+                            <input type="text" id="telegramChatId" class="form-control" placeholder="ใส่ ID กลุ่มเพื่อรับแจ้งเตือน">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="imgbbKey">ImgBB API Key (สำหรับฝากรูปภาพหนังสือฟรี)</label>
+                            <input type="password" id="imgbbKey" class="form-control" placeholder="ใส่ ImgBB API Key">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 mt-2">💾 บันทึกการตั้งค่า</button>
+                        <button type="button" class="btn w-100 mt-2" onclick="testTelegramNotification()" style="background: #f59e0b; color: white; font-weight: 600; padding: 0.75rem; border-radius: var(--border-radius-sm); border: none; cursor: pointer;">🔔 ทดสอบการแจ้งเตือน Telegram (ค่าจากฟอร์มด้านบน)</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- 4. Teacher Management Section -->
+            <section class="admin-section" id="teachersSec">
+                <div style="display:flex; justify-content:space-between; align-items:center;" class="mb-3">
+                    <h2>จัดการข้อมูลครูประจำชั้น</h2>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 2fr; gap:1.5rem;" class="teacher-grid-admin">
+                    <!-- Add/Edit Teacher Form -->
+                    <div class="card">
+                        <h3 class="mb-3" id="teacherFormTitle"><span class="material-icons-round text-icon" style="vertical-align:middle;">person_add</span> เพิ่มคุณครูใหม่</h3>
+                        <form id="addTeacherForm">
+                            <input type="hidden" id="editTeacherMode" value="false">
+                            <div class="form-group">
+                                <label class="form-label" for="newTeacherCode">รหัสประจำตัวครู / รหัสผ่าน (เช่น THTUPPT07)</label>
+                                <input type="text" id="newTeacherCode" class="form-control" placeholder="กรอกรหัสประจำตัวครู" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="newTeacherPrefix">คำนำหน้าชื่อ</label>
+                                <input type="text" id="newTeacherPrefix" class="form-control" placeholder="เช่น นางสาว, นาย, ครู">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="newTeacherFirstName">ชื่อ</label>
+                                <input type="text" id="newTeacherFirstName" class="form-control" placeholder="เช่น สมชาย" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="newTeacherLastName">นามสกุล</label>
+                                <input type="text" id="newTeacherLastName" class="form-control" placeholder="เช่น รักเรียน" required>
+                            </div>
+                            <div class="form-group" id="teacherPasswordGroup">
+                                <label class="form-label" for="newTeacherPassword" id="newTeacherPasswordLabel">รหัสผ่านสำหรับคุณครู</label>
+                                <input type="password" id="newTeacherPassword" class="form-control" placeholder="รหัสผ่านเข้าใช้งาน (อย่างน้อย 6 ตัวอักษร)">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">ระดับชั้นที่ดูแล</label>
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;" id="teacherGradesContainer">
+                                    <label style="display:inline-flex; align-items:center; gap:0.25rem;"><input type="checkbox" name="assignedGrades" value="ม.1"> ม.1</label>
+                                    <label style="display:inline-flex; align-items:center; gap:0.25rem;"><input type="checkbox" name="assignedGrades" value="ม.2"> ม.2</label>
+                                    <label style="display:inline-flex; align-items:center; gap:0.25rem;"><input type="checkbox" name="assignedGrades" value="ม.3"> ม.3</label>
+                                    <label style="display:inline-flex; align-items:center; gap:0.25rem;"><input type="checkbox" name="assignedGrades" value="ม.4"> ม.4</label>
+                                    <label style="display:inline-flex; align-items:center; gap:0.25rem;"><input type="checkbox" name="assignedGrades" value="ม.5"> ม.5</label>
+                                    <label style="display:inline-flex; align-items:center; gap:0.25rem;"><input type="checkbox" name="assignedGrades" value="ม.6"> ม.6</label>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">ห้องเรียนที่ดูแล</label>
+                                <div id="teacherClassroomsContainer" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; max-height: 150px; overflow-y: auto; border: 1px solid #ccc; padding: 0.5rem; border-radius: 4px;">
+                                    <span style="color:#888; font-size:0.9rem; grid-column: span 2;">กรุณาเลือกระดับชั้นก่อน</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="newTeacherActive" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                                    <input type="checkbox" id="newTeacherActive" checked>
+                                    <strong>เปิดใช้งานบัญชีผู้ใช้นี้ (Active)</strong>
+                                </label>
+                            </div>
+
+                            <div style="display:flex; gap:0.5rem;">
+                                <button type="submit" class="btn btn-primary flex-1 mt-2" id="btnSubmitTeacher">➕ บันทึกข้อมูลครู</button>
+                                <button type="button" class="btn mt-2" id="btnCancelEditTeacher" style="display:none; background:#888; color:white;">ยกเลิก</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Teachers Table -->
+                    <div class="card">
+                        <h3 class="mb-3"><span class="material-icons-round text-icon" style="vertical-align:middle;">list</span> รายชื่อครูในระบบ</h3>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>รหัสประจำตัว</th>
+                                        <th>ชื่อ - นามสกุล</th>
+                                        <th>ระดับชั้น</th>
+                                        <th>ห้องเรียน</th>
+                                        <th>สถานะ</th>
+                                        <th>การจัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminTeachersTableBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center">กำลังโหลดรายชื่อคุณครู...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. Database Analysis Section -->
+            <section class="admin-section" id="databaseSec">
+                <h2 class="mb-3">🔍 วิเคราะห์และทำความสะอาดฐานข้อมูล</h2>
+
+                <div class="card mb-3" style="border-left: 4px solid #f59e0b; background:#fffbeb;">
+                    <p style="margin:0; color:#92400e; font-size:0.95rem;">
+                        <span class="material-icons-round" style="vertical-align:middle; font-size:1.1rem;">warning</span>
+                        <strong>คำเตือน:</strong> การลบข้อมูลซ้ำจะไม่สามารถกู้คืนได้ กรุณาตรวจสอบผลการวิเคราะห์ก่อนดำเนินการ
+                    </p>
+                </div>
+
+                <!-- Stat Cards -->
+                <div class="stats-grid" id="dbAnalysisStats" style="display:none;">
+                    <div class="stat-card">
+                        <span class="material-icons-round stat-icon color-blue">group</span>
+                        <div class="stat-info">
+                            <span class="stat-label">นักเรียนทั้งหมดในระบบ</span>
+                            <span class="stat-val" id="dbTotalStudents">-</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="material-icons-round stat-icon" style="color:#ef4444;">content_copy</span>
+                        <div class="stat-info">
+                            <span class="stat-label">รายการซ้ำ (Duplicates)</span>
+                            <span class="stat-val" id="dbDuplicateCount" style="color:#ef4444;">-</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="material-icons-round stat-icon" style="color:#f59e0b;">link_off</span>
+                        <div class="stat-info">
+                            <span class="stat-label">บันทึกกำพร้า (Orphan Logs)</span>
+                            <span class="stat-val" id="dbOrphanCount" style="color:#f59e0b;">-</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="material-icons-round stat-icon" style="color:#10b981;">check_circle</span>
+                        <div class="stat-info">
+                            <span class="stat-label">รายการที่ไม่ซ้ำ (Unique)</span>
+                            <span class="stat-val" id="dbUniqueCount" style="color:#10b981;">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div style="display:flex; gap:1rem; flex-wrap:wrap;" class="mb-3">
+                    <button class="btn btn-primary" id="btnAnalyzeDb" onclick="analyzeDatabase()">
+                        <span class="material-icons-round" style="vertical-align:middle; font-size:1.1rem;">analytics</span>
+                        วิเคราะห์ฐานข้อมูล
+                    </button>
+                    <button class="btn btn-danger" id="btnCleanupDb" onclick="cleanupDuplicates()" style="display:none;">
+                        <span class="material-icons-round" style="vertical-align:middle; font-size:1.1rem;">auto_delete</span>
+                        ลบรายการซ้ำทั้งหมด
+                    </button>
+                    <button class="btn" id="btnExportDbReport" onclick="exportDbReport()" style="display:none; background:#10b981; color:white;">
+                        <span class="material-icons-round" style="vertical-align:middle; font-size:1.1rem;">file_download</span>
+                        ส่งออกรายงาน (Excel)
+                    </button>
+                </div>
+
+                <!-- Progress Bar -->
+                <div id="dbProgress" style="display:none; margin-bottom:1rem;">
+                    <p id="dbProgressText" style="font-size:0.9rem; color:#6b7280; margin-bottom:0.4rem;">กำลังวิเคราะห์...</p>
+                    <div style="background:#e5e7eb; border-radius:999px; height:8px; overflow:hidden;">
+                        <div id="dbProgressBar" style="background:linear-gradient(90deg,#6366f1,#8b5cf6); height:100%; width:0%; transition:width 0.4s ease; border-radius:999px;"></div>
+                    </div>
+                </div>
+
+                <!-- Duplicates Table -->
+                <div class="card" id="dbDuplicateSection" style="display:none;">
+                    <h3 class="mb-2" style="color:#ef4444;">
+                        <span class="material-icons-round" style="vertical-align:middle;">content_copy</span>
+                        รายการนักเรียนที่มีรหัสซ้ำ
+                    </h3>
+                    <p style="font-size:0.85rem; color:#6b7280; margin-bottom:1rem;">รายการด้านล่างนี้คือกลุ่มที่มี studentId เดียวกันแต่มีหลาย Document — จะเก็บ Document เก่าสุดไว้ 1 รายการ และลบส่วนที่เหลือ</p>
+                    <div class="table-container">
+                        <table class="data-table" id="dbDuplicateTable">
+                            <thead>
+                                <tr>
+                                    <th>รหัสนักเรียน</th>
+                                    <th>ชื่อ-นามสกุล</th>
+                                    <th>ระดับ/ห้อง</th>
+                                    <th>จำนวน Docs ซ้ำ</th>
+                                    <th>จะลบกี่ Docs</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dbDuplicateTableBody">
+                                <tr><td colspan="5" class="text-center">ยังไม่ได้วิเคราะห์</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Orphan Logs Table -->
+                <div class="card mt-3" id="dbOrphanSection" style="display:none;">
+                    <h3 class="mb-2" style="color:#f59e0b;">
+                        <span class="material-icons-round" style="vertical-align:middle;">link_off</span>
+                        บันทึกการอ่านที่ไม่มีนักเรียนเจ้าของ (Orphan Logs)
+                    </h3>
+                    <p style="font-size:0.85rem; color:#6b7280; margin-bottom:1rem;">บันทึกเหล่านี้อ้างอิง studentId ที่ไม่มีอยู่ในระบบนักเรียนแล้ว</p>
+                    <div class="table-container">
+                        <table class="data-table" id="dbOrphanTable">
+                            <thead>
+                                <tr>
+                                    <th>Log ID</th>
+                                    <th>studentId อ้างอิง</th>
+                                    <th>ชื่อหนังสือ</th>
+                                    <th>วันที่บันทึก</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dbOrphanTableBody">
+                                <tr><td colspan="4" class="text-center">ยังไม่ได้วิเคราะห์</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Thai Mojibake Migration Utility -->
+                <div class="card mt-3" id="dbMigrationSection">
+                    <h3 class="mb-2" style="color:var(--color-primary);">
+                        <span class="material-icons-round" style="vertical-align:middle;">translate</span>
+                        ปรับแก้ปัญหาตัวอักษรภาษาไทยเพี้ยน (One-Time Thai Mojibake Migration)
+                    </h3>
+                    <p style="font-size:0.85rem; color:#6b7280; margin-bottom:1rem;">ระบบจะสแกนและแก้ไขตัวอักษรเพี้ยน (เช่น เธเธนเนเธ”เธนเนเธฅเธฃเธฐเธเธ -> ผู้ดูแลระบบ) ในฐานข้อมูลทั้งหมด</p>
+                    <div style="display:flex; gap:0.75rem; margin-bottom:1rem;">
+                        <button class="btn btn-primary" id="btnMigrationDryRun" onclick="runMigrationUI(true)">
+                            <span class="material-icons-round" style="font-size:1.1rem; vertical-align:middle; margin-right:2px;">find_in_page</span> วิเคราะห์การเข้ารหัส (Dry Run)
+                        </button>
+                        <button class="btn btn-danger" id="btnMigrationProdRun" onclick="runMigrationUI(false)">
+                            <span class="material-icons-round" style="font-size:1.1rem; vertical-align:middle; margin-right:2px;">check_circle</span> เริ่มการปรับแก้การเข้ารหัส (Production Run)
+                        </button>
+                    </div>
+                    <div id="migrationProgress" style="display:none; margin-bottom:1rem;">
+                        <p id="migrationProgressText" style="font-size:0.9rem; color:#6b7280; margin-bottom:0.4rem;">กำลังทำงาน...</p>
+                    </div>
+                    <div style="background:#f3f4f6; padding:1rem; border-radius:var(--border-radius-sm); border:1px solid #e5e7eb; display:none;" id="migrationReportCard">
+                        <h4 class="mb-2" style="margin-top:0;">รายงานผลการทำงาน:</h4>
+                        <pre id="migrationReportContent" style="margin:0; font-family:var(--font-mono, monospace); font-size:0.85rem; white-space:pre-wrap; word-break:break-all;"></pre>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- 6. Academic Year Management Section -->
+            <section class="admin-section" id="academicYearsSec">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                    <h2 style="margin:0;">📅 จัดการปีการศึกษาแยกตามระดับชั้น</h2>
+                    <button class="btn btn-primary" onclick="openYearModal()" style="display:flex; align-items:center; gap:0.25rem;">
+                        <span class="material-icons-round">add</span> เพิ่มปีการศึกษาใหม่
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ระดับชั้น</th>
+                                    <th>ปีการศึกษา</th>
+                                    <th>สถานะเริ่มต้น</th>
+                                    <th>วันที่เพิ่มเข้าระบบ</th>
+                                    <th style="width:150px; text-align:center;">การจัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="academicYearsTable">
+                                <tr><td colspan="5" class="text-center">กำลังโหลดข้อมูลปีการศึกษา...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Excel Import Preview Modal -->
+    <div id="importPreviewModal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2>📋 พรีวิวข้อมูลนำเข้าจาก Excel</h2>
+                <button class="close-btn" onclick="closeImportPreview()"><span class="material-icons-round">close</span></button>
+            </div>
+            <div class="modal-form">
+                <div class="card mb-3" style="background:#f8f9fa; border: 1px solid #ddd; box-shadow: none;">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
+                        <div>
+                            <p class="mb-1"><strong>ชื่อไฟล์:</strong> <span id="previewFileName">-</span></p>
+                            <p><strong>จำนวนรายการที่พบ:</strong> <span id="previewTotalRecords">-</span> คน</p>
+                        </div>
+                        <div>
+                            <!-- Sheet Select -->
+                            <div class="form-group" style="margin-bottom:0.5rem;">
+                                <label class="form-label" for="previewSheetSelect" style="font-size:0.9rem; margin-bottom:0.25rem; font-weight:600;">เลือกแผ่นงาน (Sheet):</label>
+                                <select id="previewSheetSelect" class="form-control" style="padding:0.4rem; font-size:0.9rem; border-radius: var(--border-radius-sm);" onchange="handlePreviewSheetChange()"></select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Import Mode options -->
+                <div class="form-group mb-3">
+                    <label class="form-label" style="font-weight: 700; color:#2a2a72;">โหมดการนำเข้าข้อมูล (Dataset Replacement Mode)</label>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:0.5rem; background: #fdfbfb; padding:1rem; border-radius: var(--border-radius-sm); border: 1px solid #eee;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                            <input type="radio" name="importMode" value="replace" checked>
+                            <span><strong>แทนที่ข้อมูลเดิมทั้งหมด (Replace)</strong> - ลบข้อมูลนักเรียนเดิมและใช้ชุดข้อมูลใหม่นี้ (ล้างสถิติจำนวนเล่มอ่านของนักเรียนทั้งหมด)</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                            <input type="radio" name="importMode" value="merge">
+                            <span><strong>รวมข้อมูล (Merge)</strong> - เพิ่มข้อมูลใหม่ และแก้ไขชื่อ/ห้อง/เลขที่ ของรหัสที่ซ้ำ (สถิติอ่านของนักเรียนคนเดิมยังคงอยู่)</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                            <input type="radio" name="importMode" value="update">
+                            <span><strong>อัปเดตข้อมูลตาม ID (Update)</strong> - อัปเดตเฉพาะประวัติ/ข้อมูลของนักเรียนที่มี ID ตรงกันในระบบเท่านั้น (ไม่เพิ่ม ID ใหม่)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <h3 class="mb-2" style="font-size:1.1rem; color:#2a2a72; display:flex; align-items:center; gap:0.25rem;">
+                    <span class="material-icons-round" style="font-size:1.2rem;">preview</span>
+                    ตัวอย่างข้อมูล (5 รายการแรก)
+                </h3>
+                <div class="table-container mb-3" style="max-height: 200px; border:1px solid #eee; border-radius: var(--border-radius-sm); overflow-y:auto;">
+                    <table class="data-table" style="font-size:0.85rem; width:100%;">
+                        <thead>
+                            <tr>
+                                <th>รหัสประจำตัว</th>
+                                <th>ชื่อ-นามสกุล</th>
+                                <th>ระดับ</th>
+                                <th>ห้อง</th>
+                                <th>เลขที่</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewTableBody">
+                            <!-- JS will inject preview rows here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Import Progress -->
+                <div id="importProgress" style="display:none; margin: 1rem 0;">
+                    <p id="importProgressText" style="font-size:0.9rem; color:#6b7280; margin-bottom:0.4rem; font-weight:600;">กำลังนำเข้าข้อมูล...</p>
+                    <div style="background:#e5e7eb; border-radius:999px; height:8px; overflow:hidden;">
+                        <div id="importProgressBar" style="background:linear-gradient(90deg,#10b981,#059669); height:100%; width:0%; transition:width 0.2s ease;"></div>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:1.5rem;">
+                    <button class="btn" style="background:#e5e7eb; color:#4b5563; border-radius: var(--border-radius-full);" onclick="closeImportPreview()">ยกเลิก</button>
+                    <button class="btn btn-primary" id="btnConfirmImport" onclick="confirmExcelImport()">💾 ยืนยันการนำเข้าข้อมูล</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Academic Year Modal -->
+    <div id="yearModal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 480px;">
+            <div class="modal-header">
+                <h2 id="yearModalTitle">เพิ่มปีการศึกษาใหม่</h2>
+                <button class="close-btn" onclick="closeYearModal()"><span class="material-icons-round">close</span></button>
+            </div>
+            <form id="yearForm" onsubmit="handleYearFormSubmit(event)" style="padding: 1.5rem;">
+                <input type="hidden" id="yearModalId">
+                
+                <div class="form-group mb-3">
+                    <label class="form-label" for="yearLevelInput">ระดับชั้น (Level)</label>
+                    <select id="yearLevelInput" class="form-control" style="border-radius: var(--border-radius-sm);" required>
+                        <option value="ม.1">ม.1 (มัธยมศึกษาปีที่ 1)</option>
+                        <option value="ม.2">ม.2 (มัธยมศึกษาปีที่ 2)</option>
+                        <option value="ม.3">ม.3 (มัธยมศึกษาปีที่ 3)</option>
+                        <option value="ม.4">ม.4 (มัธยมศึกษาปีที่ 4)</option>
+                        <option value="ม.5">ม.5 (มัธยมศึกษาปีที่ 5)</option>
+                        <option value="ม.6">ม.6 (มัธยมศึกษาปีที่ 6)</option>
+                    </select>
+                </div>
+
+                <div class="form-group mb-4">
+                    <label class="form-label" for="yearNameInput">ปีการศึกษา (เช่น 2568)</label>
+                    <input type="text" id="yearNameInput" class="form-control" placeholder="กรอกปีการศึกษา 4 หลัก" required maxlength="4" pattern="\d{4}" style="border-radius: var(--border-radius-sm);">
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+                    <button type="button" class="btn" style="background:#e5e7eb; color:#4b5563; border-radius: var(--border-radius-sm);" onclick="closeYearModal()">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary" style="border-radius: var(--border-radius-sm);">💾 บันทึกปีการศึกษา</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JS -->
+    <script src="js/supabase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/telegram.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="js/excel-handler.js"></script>
+    <script src="js/academic-year.js"></script>
+    <script src="js/migrations/fix-thai-encoding.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>

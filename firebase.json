@@ -1,0 +1,18 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "**/scratch/**",
+      "*.xlsx",
+      "*.csv",
+      "*.zip",
+      "firestore.rules"
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

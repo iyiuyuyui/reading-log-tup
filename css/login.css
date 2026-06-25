@@ -1,0 +1,114 @@
+body {
+  background: linear-gradient(135deg, #FFB6C1 0%, #DDA0DD 50%, #87CEEB 100%);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+}
+
+.login-container {
+  width: 100%;
+  max-width: 450px;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: var(--border-radius-lg);
+  padding: 2.5rem 2rem;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+
+.login-header {
+  margin-bottom: 2rem;
+}
+
+.login-logo {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #fff;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1rem;
+  background-color: white;
+}
+
+.login-header h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #2a2a72;
+  margin-bottom: 0.25rem;
+}
+
+.login-header p {
+  color: var(--color-text-light);
+  font-size: 0.95rem;
+}
+
+.role-tabs {
+  display: flex;
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 4px;
+  border-radius: var(--border-radius-full);
+  margin-bottom: 2rem;
+}
+
+.role-tab {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  border: none;
+  background: transparent;
+  font-family: var(--font-family-main);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text-light);
+  cursor: pointer;
+  border-radius: var(--border-radius-full);
+  transition: all 0.3s ease;
+}
+
+.role-tab.active {
+  background-color: #fff;
+  color: #2a2a72;
+  box-shadow: var(--shadow-sm);
+}
+
+.form-section {
+  display: none;
+  text-align: left;
+}
+
+.form-section.active {
+  display: block;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.error-message {
+  color: #ff6b6b;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  text-align: left;
+  min-height: 20px;
+}
+
+.w-100 {
+  width: 100%;
+}
+
+.back-link {
+  display: inline-block;
+  margin-top: 1.5rem;
+  color: var(--color-text-light);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+}
+
+.back-link:hover {
+  color: #2a2a72;
+}

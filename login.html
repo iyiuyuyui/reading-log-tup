@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ | บันทึกรักการอ่าน</title>
+    <link rel="icon" type="image/png" href="school_logo_round.png">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Supabase Client JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+    
+    <div class="login-container">
+        <div class="login-card animate-slide-up">
+            <div class="login-header">
+                <img src="school_logo_round.png" alt="โลโก้โรงเรียน" class="login-logo">
+                <h2>เข้าสู่ระบบ</h2>
+                <p>บันทึกรักการอ่าน ภาษาไทย ต.อ.พ.ปท.</p>
+            </div>
+            
+            <!-- Role Selector Tabs -->
+            <div class="role-tabs">
+                <button class="role-tab active" data-role="student">นักเรียน</button>
+                <button class="role-tab" data-role="teacher">ครู</button>
+                <button class="role-tab" data-role="admin">ผู้ดูแลระบบ</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm">
+                <!-- Student Form Fields -->
+                <div class="form-section active" id="studentSection">
+                    <div class="form-group">
+                        <label class="form-label" for="studentId">รหัสประจำตัวนักเรียน 5 หลัก</label>
+                        <input type="text" id="studentId" class="form-control" placeholder="กรอกรหัสประจำตัว (เช่น 34424)" maxlength="5" pattern="\d{5}">
+                    </div>
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-label" for="studentPassword">รหัสผ่าน</label>
+                        <input type="password" id="studentPassword" class="form-control" placeholder="กรอกรหัสผ่าน">
+                    </div>
+                    <div style="text-align: right; margin-top: 0.5rem; font-size: 0.85rem;">
+                        <a href="#" onclick="openActivationModal(event)" style="color: var(--color-primary); text-decoration: none; font-weight: 500;">เปิดใช้งานบัญชีครั้งแรก</a>
+                    </div>
+                </div>
+
+                <!-- Teacher Form Fields -->
+                <div class="form-section" id="teacherSection">
+                    <div class="form-group">
+                        <label class="form-label" for="teacherUserCode">รหัสประจำตัวครู</label>
+                        <input type="text" id="teacherUserCode" class="form-control" placeholder="กรอกรหัสครู (เช่น THTUPPT01)">
+                    </div>
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-label" for="teacherPassword">รหัสผ่านครู</label>
+                        <input type="password" id="teacherPassword" class="form-control" placeholder="กรอกรหัสผ่านครู">
+                    </div>
+                </div>
+
+                <!-- Admin Form Fields -->
+                <div class="form-section" id="adminSection">
+                    <div class="form-group">
+                        <label class="form-label" for="adminCode">รหัสผ่านผู้ดูแลระบบ</label>
+                        <input type="password" id="adminCode" class="form-control" placeholder="กรอกรหัสผ่านผู้ดูแลระบบ">
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div id="errorMessage" class="error-message"></div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-primary w-100 mt-2">เข้าสู่ระบบ</button>
+            </form>
+            
+            <a href="index.html" class="back-link">← กลับหน้าแรก</a>
+        </div>
+    </div>
+
+    <!-- Activation Modal -->
+    <div id="activationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 2rem; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); box-sizing: border-box; font-family: 'Sarabun', sans-serif;">
+            <h3 style="margin-top: 0; margin-bottom: 1.25rem; text-align: center; color: var(--color-text-dark);">🔑 เปิดใช้งานบัญชีนักเรียน</h3>
+            <form id="activationForm">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label" for="actStudentId">รหัสประจำตัวนักเรียน 5 หลัก</label>
+                    <input type="text" id="actStudentId" class="form-control" placeholder="กรอกเลขประจำตัว 5 หลัก" required pattern="\d{5}" maxlength="5">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label" for="actPasscode">รหัสเปิดใช้งาน (Passcode จากครู)</label>
+                    <input type="password" id="actPasscode" class="form-control" placeholder="กรอกรหัสเปิดใช้งาน" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label" for="actPassword">ตั้งรหัสผ่านใหม่ส่วนตัว</label>
+                    <input type="password" id="actPassword" class="form-control" placeholder="ตั้งรหัสผ่านใหม่ (อย่างน้อย 6 ตัว)" required minlength="6">
+                </div>
+                <div id="actErrorMessage" class="error-message" style="color: var(--color-danger); margin-bottom: 1rem; font-size: 0.85rem; text-align: center;"></div>
+                <button type="submit" class="btn btn-primary w-100" style="margin-bottom: 0.5rem; height: 2.8rem;">🚀 ยืนยันการเปิดใช้งาน</button>
+                <button type="button" class="btn w-100" style="background: #e5e7eb; color: #4b5563; height: 2.8rem;" onclick="closeActivationModal()">ยกเลิก</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- JS -->
+    <script src="js/supabase-config.js"></script>
+    <script src="js/excel-handler.js"></script>
+    <script src="js/auth.js"></script>
+</body>
+</html>

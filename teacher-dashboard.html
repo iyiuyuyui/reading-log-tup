@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบตรวจบันทึกรักการอ่าน | แผงควบคุมครู</title>
+    <link class="favicon" rel="icon" type="image/png" href="school_logo_round.png">
+    
+    <!-- Google Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    
+    <!-- Supabase Client JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <style>
+        .teacher-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 1.5rem;
+        }
+        @media (max-width: 900px) {
+            .teacher-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .announcement-box {
+            background-color: #fff;
+            padding: 1.5rem;
+            border-radius: var(--border-radius-md);
+            box-shadow: var(--shadow-sm);
+        }
+        .announcement-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid #eee;
+            position: relative;
+        }
+        .announcement-item:last-child {
+            border-bottom: none;
+        }
+        .announcement-actions {
+            position: absolute;
+            right: 0.5rem;
+            top: 0.5rem;
+        }
+        .delete-btn {
+            background: transparent;
+            border: none;
+            color: #ff6b6b;
+            cursor: pointer;
+        }
+        .class-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .class-card {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: var(--border-radius-sm);
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .class-card:hover, .class-card.active {
+            background-color: var(--color-secondary);
+            color: white;
+            border-color: var(--color-secondary);
+            transform: translateY(-2px);
+        }
+        .star-rating {
+            display: flex;
+            gap: 0.25rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .star {
+            color: #ccc;
+            transition: color 0.2s;
+        }
+        .star.selected {
+            color: #ffb703;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .slider-val {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #2a2a72;
+            width: 40px;
+        }
+        .avatar-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .student-list-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-brand">
+                <span class="material-icons-round font-icon">school</span>
+                <h1>ตรวจงานบันทึกรักการอ่าน</h1>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-left:auto; margin-right:1rem;">
+                <label for="globalYearSelect" style="font-size:0.9rem; font-weight:600; color:white;">ปีการศึกษา:</label>
+                <select id="globalYearSelect" class="form-control" style="width:140px; padding:0.25rem 0.5rem; border-radius:var(--border-radius-sm); font-weight:600; cursor:pointer;" onchange="handleGlobalYearChange(this.value)"></select>
+            </div>
+            <div class="user-meta" id="headerUserMeta">
+                <!-- Injected via JS -->
+            </div>
+            <button class="btn-logout" onclick="logout()">
+                <span class="material-icons-round">logout</span>
+                <span>ออกจากระบบ</span>
+            </button>
+        </header>
+
+        <!-- Tabs Menu -->
+        <div class="tabs-container mb-3" style="display: flex; gap: 1rem; border-bottom: 2px solid #e9ecef; padding-bottom: 0.5rem; margin-top: 1rem;">
+            <button class="tab-btn active" id="btnTabGrading" onclick="switchTab('grading')" style="background:none; border:none; padding:0.5rem 1rem; font-family:inherit; font-size:1.1rem; font-weight:600; cursor:pointer; color:var(--color-primary); border-bottom: 3px solid var(--color-primary); transition:all 0.3s; display:flex; align-items:center; gap:4px;">
+                <span class="material-icons-round">pending_actions</span>ตรวจประเมินงาน
+            </button>
+            <button class="tab-btn" id="btnTabSummary" onclick="switchTab('summary')" style="background:none; border:none; padding:0.5rem 1rem; font-family:inherit; font-size:1.1rem; font-weight:600; cursor:pointer; color:var(--color-text-light); border-bottom: 3px solid transparent; transition:all 0.3s; display:flex; align-items:center; gap:4px;">
+                <span class="material-icons-round">analytics</span>สรุปการอ่าน (Dashboard)
+            </button>
+        </div>
+
+        <!-- Main Dashboard View -->
+        <main class="dashboard-main animate-fade-in">
+            <!-- Tab 1: Grading Content -->
+            <div id="tabGradingContent" class="tab-content">
+                <div class="teacher-grid">
+                    <!-- Left Column: Classes and Announcements -->
+                    <div class="left-col">
+                        <!-- Class Browser Card -->
+                        <div class="card mb-3">
+                            <h3 class="section-title"><span class="material-icons-round text-icon">grid_view</span>เลือกชั้นเรียนของท่าน</h3>
+                            <p style="font-size:0.9rem; color:var(--color-text-light)">เลือกชั้นปีและห้องเรียนเพื่อดูรายชื่อนักเรียน</p>
+                            
+                            <div class="form-group mt-2">
+                                <label class="form-label" for="levelSelect">ระดับชั้น</label>
+                                <select id="levelSelect" class="form-control" onchange="loadRooms()">
+                                    <option value="ม.1">มัธยมศึกษาปีที่ 1</option>
+                                    <option value="ม.2">มัธยมศึกษาปีที่ 2</option>
+                                    <option value="ม.3">มัธยมศึกษาปีที่ 3</option>
+                                    <option value="ม.4">มัธยมศึกษาปีที่ 4</option>
+                                    <option value="ม.5">มัธยมศึกษาปีที่ 5</option>
+                                    <option value="ม.6">มัธยมศึกษาปีที่ 6</option>
+                                </select>
+                            </div>
+
+                            <div class="class-grid" id="roomsContainer">
+                                <!-- JS will inject room cards like 1/1, 1/2 -->
+                            </div>
+                        </div>
+
+                        <!-- Announcements Card -->
+                        <div class="announcement-box card">
+                            <h3 class="section-title"><span class="material-icons-round text-icon">campaign</span>ข่าวประกาศถึงนักเรียน</h3>
+                            <form id="announcementForm" class="mt-2">
+                                <div class="form-group">
+                                    <input type="text" id="annTitle" class="form-control" placeholder="หัวข้อประกาศ..." required>
+                                </div>
+                                <div class="form-group">
+                                    <textarea id="annContent" class="form-control" rows="3" placeholder="เขียนรายละเอียด..." required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">📢 ลงประกาศ</button>
+                            </form>
+                            <hr class="mt-3 mb-2" style="border: none; border-top: 1px solid #eee;">
+                            <div id="announcementsList">
+                                <p class="text-center font-sm color-light">ยังไม่มีประกาศ</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Queue & Student Browser -->
+                    <div class="right-col">
+                        <!-- Student list container (Hidden by default, shown when class is clicked) -->
+                        <div class="card mb-3" id="studentListCard" style="display: none;">
+                            <h3 class="section-title" id="studentListTitle"><span class="material-icons-round text-icon">people</span>นักเรียนในชั้นเรียน</h3>
+                            <div class="student-list-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>เลขที่</th>
+                                            <th>รหัสนักเรียน</th>
+                                            <th>ชื่อ-นามสกุล</th>
+                                            <th>อ่านแล้ว (เล่ม)</th>
+                                            <th>เครื่องมือ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="studentListBody">
+                                        <!-- Injected dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Grading Queue Table -->
+                        <div class="card">
+                            <h3 class="section-title"><span class="material-icons-round text-icon">pending_actions</span>รายการรอตรวจประเมิน</h3>
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ผู้ส่ง</th>
+                                            <th>วันที่บันทึก</th>
+                                            <th>ชื่อหนังสือ</th>
+                                            <th>ประเภท</th>
+                                            <th>เครื่องมือ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="gradingQueueBody">
+                                        <tr>
+                                            <td colspan="5" class="text-center">กำลังโหลดรายการรอตรวจ...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 2: Reading Summary Content -->
+            <div id="tabSummaryContent" class="tab-content" style="display: none;">
+                <!-- Filters Section -->
+                <div class="card mb-3">
+                    <h3 class="section-title"><span class="material-icons-round text-icon">tune</span>ตัวกรองข้อมูลสรุป</h3>
+                    <div class="form-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="filterSearch">ค้นหาชื่อนักเรียน</label>
+                            <input type="text" id="filterSearch" class="form-control" placeholder="พิมพ์ชื่อหรือนามสกุล..." oninput="updateRealtimeSummary()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="filterLevel">ระดับชั้น</label>
+                            <select id="filterLevel" class="form-control" onchange="updateSummaryRooms(); updateRealtimeSummary();">
+                                <option value="ทั้งหมด">ทั้งหมด</option>
+                                <option value="ม.1">ม.1</option>
+                                <option value="ม.2">ม.2</option>
+                                <option value="ม.3">ม.3</option>
+                                <option value="ม.4">ม.4</option>
+                                <option value="ม.5">ม.5</option>
+                                <option value="ม.6">ม.6</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="filterRoom">ห้อง</label>
+                            <select id="filterRoom" class="form-control" onchange="updateRealtimeSummary()">
+                                <option value="ทั้งหมด">ทั้งหมด</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="filterStartDate">ตั้งแต่วันที่</label>
+                            <input type="date" id="filterStartDate" class="form-control" onchange="updateRealtimeSummary()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="filterEndDate">ถึงวันที่</label>
+                            <input type="date" id="filterEndDate" class="form-control" onchange="updateRealtimeSummary()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="filterSort">เรียงลำดับ</label>
+                            <select id="filterSort" class="form-control" onchange="updateRealtimeSummary()">
+                                <option value="number-asc">เลขที่ (น้อย - มาก)</option>
+                                <option value="books-desc">จำนวนเล่มอ่านมากที่สุด</option>
+                                <option value="pages-desc">จำนวนหน้าอ่านมากที่สุด</option>
+                                <option value="time-desc">เวลาอ่านสะสมมากที่สุด</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Class Browser Card for Summary -->
+                <div class="card mb-3" id="summaryClassBrowserCard">
+                    <h3 class="section-title"><span class="material-icons-round text-icon">grid_view</span>เลือกชั้นเรียนเพื่อดูสรุป</h3>
+                    <p style="font-size:0.9rem; color:var(--color-text-light)">เลือกห้องเรียนเพื่อดูข้อมูลสรุปและรายชื่อผู้ยังไม่ได้ส่งแบบเรียลไทม์</p>
+                    
+                    <div class="class-grid" id="summaryRoomsContainer">
+                        <!-- JS will inject room cards like 1/1, 1/2 -->
+                    </div>
+                </div>
+
+                <!-- Action Bar -->
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
+                    <div style="font-size:1.1rem; font-weight:600; color:var(--color-primary);" id="summaryClassLabel">
+                        สรุปภาพรวมทั้งหมด
+                    </div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button class="btn btn-primary" onclick="downloadClassReportPDF()" style="background:#5c7aff; display:flex; align-items:center; gap:4px;">
+                            <span class="material-icons-round">picture_as_pdf</span>ดาวน์โหลดรายงานห้อง (PDF)
+                        </button>
+                        <button class="btn btn-primary" onclick="printReport()" style="background:#06d6a0; display:flex; align-items:center; gap:4px;">
+                            <span class="material-icons-round">print</span>พิมพ์รายงาน
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KPI Cards Dashboard -->
+                <section class="summary-cards mb-3">
+                    <div class="stat-card" style="background:#eef1ff; border-left:4px solid #5c7aff;">
+                        <span class="material-icons-round stat-icon color-blue">how_to_reg</span>
+                        <div class="stat-info">
+                            <span class="stat-label">ส่งแล้ว</span>
+                            <span class="stat-val" id="sumSubmitted">0 คน</span>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="background:#fff0f0; border-left:4px solid #ff6b6b;">
+                        <span class="material-icons-round stat-icon color-pink">person_off</span>
+                        <div class="stat-info">
+                            <span class="stat-label">ยังไม่ส่ง</span>
+                            <span class="stat-val" id="sumNotSubmitted">0 คน</span>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="background:#f4fbf7; border-left:4px solid #06d6a0;">
+                        <span class="material-icons-round stat-icon color-blue">auto_stories</span>
+                        <div class="stat-info">
+                            <span class="stat-label">หนังสือทั้งหมด</span>
+                            <span class="stat-val" id="sumTotalBooks">0 เล่ม</span>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="background:#fffcf0; border-left:4px solid #ffb703;">
+                        <span class="material-icons-round stat-icon color-purple">text_fields</span>
+                        <div class="stat-info">
+                            <span class="stat-label">จำนวนหน้ารวม</span>
+                            <span class="stat-val" id="sumTotalPages">0 หน้า</span>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="background:#f9f0ff; border-left:4px solid #a855f7;">
+                        <span class="material-icons-round stat-icon color-pink">schedule</span>
+                        <div class="stat-info">
+                            <span class="stat-label">เวลาอ่านรวม</span>
+                            <span class="stat-val" id="sumTotalTime">0 นาที</span>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="background:#f0fafb; border-left:4px solid #06b6d4;">
+                        <span class="material-icons-round stat-icon color-gold">analytics</span>
+                        <div class="stat-info">
+                            <span class="stat-label">ค่าเฉลี่ยต่อคน</span>
+                            <span class="stat-val" id="sumAverageBooks">0.0 เล่ม</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tables Grid -->
+                <div class="teacher-grid">
+                    <!-- Submitted Students Table -->
+                    <div class="card">
+                        <h3 class="section-title"><span class="material-icons-round text-icon" style="color:#06d6a0;">check_circle</span>รายชื่อผู้ส่งบันทึกแล้ว</h3>
+                        <div class="table-container" style="max-height: 450px; overflow-y:auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>เลขที่</th>
+                                        <th>ชื่อ-นามสกุล</th>
+                                        <th>ชั้น/ห้อง</th>
+                                        <th>จำนวนเล่ม</th>
+                                        <th>การจัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sumSubmittedBody">
+                                    <tr>
+                                        <td colspan="5" class="text-center">กำลังประมวลผลข้อมูล...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Not Submitted Students Table -->
+                    <div class="card">
+                        <h3 class="section-title"><span class="material-icons-round text-icon" style="color:#ff6b6b;">cancel</span>รายชื่อผู้ยังไม่ได้ส่ง</h3>
+                        <div class="table-container" style="max-height: 450px; overflow-y:auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>เลขที่</th>
+                                        <th>รหัสนักเรียน</th>
+                                        <th>ชื่อ-นามสกุล</th>
+                                        <th>ชั้น/ห้อง</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sumNotSubmittedBody">
+                                    <tr>
+                                        <td colspan="4" class="text-center">กำลังประมวลผลข้อมูล...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Books Summary Table -->
+                <div class="card mt-3">
+                    <h3 class="section-title"><span class="material-icons-round text-icon">menu_book</span>รายการหนังสือและประเภททั้งหมดที่ถูกอ่าน</h3>
+                    <div class="table-container" style="max-height: 350px; overflow-y:auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อหนังสือ</th>
+                                    <th>ผู้แต่ง</th>
+                                    <th>ประเภท</th>
+                                    <th>จำนวนผู้รับอ่าน (ครั้ง)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sumBooksBody">
+                                <tr>
+                                    <td colspan="4" class="text-center">ไม่มีข้อมูลหนังสือ</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for Reading Log Grading -->
+    <div class="modal-overlay" id="gradingModal">
+        <div class="modal-card" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>📝 ตรวจประเมินงานบันทึกการอ่าน</h2>
+                <button class="close-btn" onclick="closeGradingModal()">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+            <div class="modal-form">
+                <!-- Log Details -->
+                <div class="mb-3">
+                    <p><strong>ผู้บันทึก:</strong> <span id="gradeStudentName">-</span></p>
+                    <p><strong>ชื่อหนังสือ:</strong> <span id="gradeBookTitle">-</span></p>
+                    <p><strong>ผู้แต่ง:</strong> <span id="gradeAuthor">-</span> | <strong>สำนักพิมพ์:</strong> <span id="gradePublisher">-</span></p>
+                    <p><strong>ประเภท:</strong> <span id="gradeBookType">-</span> | <strong>จำนวน:</strong> <span id="gradePageCount">-</span> หน้า | <strong>เวลา:</strong> <span id="gradeReadingTime">-</span> นาที</p>
+                    <hr class="mt-2 mb-2" style="border: none; border-top: 1px solid #eee;">
+                    <div class="mb-2">
+                        <strong>📖 เนื้อหาโดยสรุป:</strong>
+                        <p id="gradeSummary" style="background:#f8f9fa; padding:0.75rem; border-radius:8px; font-size:0.95rem; margin-top:0.25rem;"></p>
+                    </div>
+                    <div class="mb-2">
+                        <strong>💡 ข้อคิดที่ได้รับ:</strong>
+                        <p id="gradeLesson" style="background:#f8f9fa; padding:0.75rem; border-radius:8px; font-size:0.95rem; margin-top:0.25rem;"></p>
+                    </div>
+                    <div class="mb-2" id="attachmentContainer" style="display: none;">
+                        <strong>📎 ไฟล์แนบ:</strong>
+                        <p><a href="#" id="gradeAttachmentLink" target="_blank" class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.85rem; margin-top:0.25rem;">เปิดไฟล์แนบ</a></p>
+                    </div>
+                </div>
+
+                <hr class="mt-3 mb-3" style="border: none; border-top: 1px solid #eee;">
+
+                <!-- Grading Inputs -->
+                <form id="gradingForm">
+                    <div class="form-group">
+                        <label class="form-label">ให้คะแนนความถูกต้อง (0 - 10 คะแนน)</label>
+                        <div class="slider-container">
+                            <input type="range" id="gradeScore" class="form-control" min="0" max="10" step="1" value="8" style="padding:0;" oninput="updateScoreVal(this.value)">
+                            <span class="slider-val" id="scoreVal">8</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">ให้ตราดาวความประทับใจ (1 - 5 ดาว)</label>
+                        <div class="star-rating" id="starRating">
+                            <span class="material-icons-round star selected" data-value="1" onclick="setStars(1)">star</span>
+                            <span class="material-icons-round star selected" data-value="2" onclick="setStars(2)">star</span>
+                            <span class="material-icons-round star selected" data-value="3" onclick="setStars(3)">star</span>
+                            <span class="material-icons-round star selected" data-value="4" onclick="setStars(4)">star</span>
+                            <span class="material-icons-round star" data-value="5" onclick="setStars(5)">star</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="teacherComment">ข้อเสนอแนะเพิ่มเติมจากคุณครู</label>
+                        <textarea id="teacherComment" class="form-control" rows="2" placeholder="เขียนข้อความให้กำลังใจหรือแนะนำการอ่านเพิ่มเติมแก่ศิษย์..."></textarea>
+                    </div>
+
+                    <div style="display:flex; gap:1rem; margin-top:2rem;">
+                        <button type="button" class="btn w-50" style="background:#ff6b6b; color:#fff" onclick="submitGrade('rejected')">❌ ไม่อนุมัติ / ให้กลับไปแก้</button>
+                        <button type="button" class="btn btn-primary w-50" onclick="submitGrade('approved')">✅ อนุมัติการอ่าน</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Student Profile / Logs List -->
+    <div class="modal-overlay" id="studentProfileModal">
+        <div class="modal-card" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 id="profileModalTitle">📚 ประวัติการอ่านของนักเรียน</h2>
+                <button class="close-btn" onclick="closeStudentProfileModal()">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+            <div class="modal-form">
+                <!-- One Page Individual Summary Box -->
+                <div id="individualSummaryArea" class="mb-3" style="background:#f8f9fa; padding:1.2rem; border-radius:12px; display:grid; grid-template-columns:repeat(4, 1fr); gap:1rem; text-align:center; align-items:center; border:1px solid #e9ecef;">
+                    <div>
+                        <div style="font-size:0.85rem; color:var(--color-text-light);">จำนวนที่ส่งบันทึก</div>
+                        <div style="font-size:1.3rem; font-weight:700; color:var(--color-primary);" id="indivSubmittedCount">0 ครั้ง</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.85rem; color:var(--color-text-light);">หน้ารวมสะสม</div>
+                        <div style="font-size:1.3rem; font-weight:700; color:#06d6a0;" id="indivPageCount">0 หน้า</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.85rem; color:var(--color-text-light);">เวลาอ่านรวม</div>
+                        <div style="font-size:1.3rem; font-weight:700; color:#a855f7;" id="indivReadingTime">0 นาที</div>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" onclick="downloadIndividualOnePagePDF()" style="padding:0.5rem; font-size:0.85rem; width:100%; display:flex; align-items:center; justify-content:center; gap:4px; background:#ffb703; color:#000;">
+                            <span class="material-icons-round" style="font-size:1rem;">picture_as_pdf</span> PDF สรุปรูปเล่ม
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Student Account Settings Box -->
+                <div id="studentAccountArea" class="mb-3" style="background:#f0fdf4; padding:1rem 1.2rem; border-radius:12px; display:flex; justify-content:space-between; align-items:center; border:1px solid #bbf7d0; font-size:0.9rem;">
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <span class="material-icons-round" style="color:#16a34a; font-size:1.4rem;">vpn_key</span>
+                        <div>
+                            <div style="font-weight:700; color:#14532d;">ข้อมูลการเข้าสู่ระบบ</div>
+                            <div id="studentAccountStatus" style="color:#166534; font-size:0.85rem; margin-top:0.1rem;">กำลังตรวจสอบข้อมูลบัญชี...</div>
+                        </div>
+                    </div>
+                    <div id="studentAccountActions" style="display:flex; gap:0.5rem;">
+                        <!-- Action buttons injected dynamically -->
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ครั้งที่</th>
+                                <th>วันที่บันทึก</th>
+                                <th>ชื่อหนังสือ</th>
+                                <th>ประเภท</th>
+                                <th>คะแนน / ดาว</th>
+                                <th>สถานะ</th>
+                                <th>การจัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="profileLogsTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center">ไม่มีข้อมูลประวัติการบันทึก</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Print Container for Class Report PDF -->
+    <div id="classReportPrintContainer" style="position: absolute; left: -9999px; top: -9999px; width: 800px; background: #ffffff; padding: 40px; font-family: 'Sarabun', sans-serif; color: #000000; box-sizing: border-box; line-height: 1.4;">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="margin: 0; font-size: 24px; font-weight: 700; font-family: 'Sarabun', sans-serif;">รายงานสรุปผลระบบบันทึกรักการอ่าน</h2>
+            <h3 style="margin: 5px 0 0 0; font-size: 18px; font-weight: 500; font-family: 'Sarabun', sans-serif;">โรงเรียนเตรียมอุดมศึกษาพัฒนาการ ปทุมธานี</h3>
+            <p style="margin: 5px 0 0 0; font-size: 14px; font-family: 'Sarabun', sans-serif;" id="printReportMeta">ระดับชั้น: - | ห้อง: - | วันที่สร้างรายงาน: -</p>
+        </div>
+        
+        <hr style="border: none; border-top: 2px solid #000000; margin-bottom: 20px;">
+        
+        <h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; font-family: 'Sarabun', sans-serif;">📊 สรุปสถิติภาพรวมห้องเรียน</h4>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; font-family: 'Sarabun', sans-serif;">
+            <tr>
+                <td style="border: 1px solid #000; padding: 8px; width: 50%;">จำนวนนักเรียนทั้งหมด</td>
+                <td style="border: 1px solid #000; padding: 8px; font-weight: bold;" id="printTotalStudents">- คน</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 8px;">จำนวนผู้ส่งบันทึกแล้ว</td>
+                <td style="border: 1px solid #000; padding: 8px; font-weight: bold; color: green;" id="printSubmittedCount">- คน</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 8px;">จำนวนผู้ยังไม่ส่งบันทึก</td>
+                <td style="border: 1px solid #000; padding: 8px; font-weight: bold; color: red;" id="printNotSubmittedCount">- คน</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 8px;">จำนวนหนังสือที่อ่านรวม</td>
+                <td style="border: 1px solid #000; padding: 8px; font-weight: bold;" id="printTotalBooks">- เล่ม</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 8px;">จำนวนหน้ารวมทั้งหมด</td>
+                <td style="border: 1px solid #000; padding: 8px; font-weight: bold;" id="printTotalPages">- หน้า</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 8px;">เวลาใช้อ่านรวมทั้งหมด</td>
+                <td style="border: 1px solid #000; padding: 8px; font-weight: bold;" id="printTotalTime">- นาที</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 8px;">ค่าเฉลี่ยจำนวนเล่มที่อ่านต่อคน</td>
+                <td style="border: 1px solid #000; padding: 8px; font-weight: bold;" id="printAverageBooks">- เล่ม / คน</td>
+            </tr>
+        </table>
+
+        <h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; font-family: 'Sarabun', sans-serif;">📋 ตารางรายชื่อนักเรียนที่ส่งบันทึกแล้ว</h4>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; text-align: left; font-family: 'Sarabun', sans-serif;">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="border: 1px solid #000; padding: 6px; width: 10%;">เลขที่</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 20%;">รหัสนักเรียน</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 50%;">ชื่อ-นามสกุล</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 20%;">จำนวนเล่ม</th>
+                </tr>
+            </thead>
+            <tbody id="printSubmittedTableBody">
+                <!-- Injected dynamically -->
+            </tbody>
+        </table>
+
+        <h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; font-family: 'Sarabun', sans-serif;">❌ ตารางรายชื่อนักเรียนที่ยังไม่ได้ส่ง</h4>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; text-align: left; font-family: 'Sarabun', sans-serif;">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="border: 1px solid #000; padding: 6px; width: 10%;">เลขที่</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 25%;">รหัสนักเรียน</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 65%;">ชื่อ-นามสกุล</th>
+                </tr>
+            </thead>
+            <tbody id="printNotSubmittedTableBody">
+                <!-- Injected dynamically -->
+            </tbody>
+        </table>
+
+        <h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; font-family: 'Sarabun', sans-serif;">📚 รายการหนังสือทั้งหมดในห้องเรียน</h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; font-family: 'Sarabun', sans-serif;">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="border: 1px solid #000; padding: 6px; width: 45%;">ชื่อหนังสือ</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 25%;">ผู้แต่ง</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 20%;">ประเภท</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 10%;">อ่าน (ครั้ง)</th>
+                </tr>
+            </thead>
+            <tbody id="printBooksTableBody">
+                <!-- Injected dynamically -->
+            </tbody>
+        </table>
+        
+        <div style="margin-top: 40px; text-align: right; font-size: 14px; font-family: 'Sarabun', sans-serif;">
+            <p>ลงชื่อ............................................................ ครูประจำชั้น / ครูผู้ประเมิน</p>
+            <p style="margin-top: 5px;" id="printTeacherName">(............................................................)</p>
+        </div>
+    </div>
+
+    <!-- Hidden Print Container for Individual One Page Summary PDF -->
+    <div id="individualReportPrintContainer" style="position: absolute; left: -9999px; top: -9999px; width: 800px; background: #ffffff; padding: 40px; font-family: 'Sarabun', sans-serif; color: #000000; box-sizing: border-box; line-height: 1.4;">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="margin: 0; font-size: 24px; font-weight: 700; font-family: 'Sarabun', sans-serif;">รายงานสรุปผลการอ่านรายบุคคล (One Page Summary)</h2>
+            <h3 style="margin: 5px 0 0 0; font-size: 18px; font-weight: 500; font-family: 'Sarabun', sans-serif;">โรงเรียนเตรียมอุดมศึกษาพัฒนาการ ปทุมธานี</h3>
+            <p style="margin: 5px 0 0 0; font-size: 14px; font-family: 'Sarabun', sans-serif;" id="printIndivStudentMeta">นักเรียน: - | ชั้น: - | เลขที่: -</p>
+        </div>
+        
+        <hr style="border: none; border-top: 2px solid #000000; margin-bottom: 20px;">
+        
+        <h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; font-family: 'Sarabun', sans-serif;">📊 สรุปความก้าวหน้าการอ่าน</h4>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; text-align: center; font-size: 14px; font-family: 'Sarabun', sans-serif;">
+            <div style="border: 1px solid #000; padding: 10px;">
+                <div>จำนวนครั้งที่ส่งบันทึก</div>
+                <div style="font-size: 20px; font-weight: bold; margin-top: 5px;" id="printIndivCount">- ครั้ง</div>
+            </div>
+            <div style="border: 1px solid #000; padding: 10px;">
+                <div>จำนวนหน้ารวมสะสม</div>
+                <div style="font-size: 20px; font-weight: bold; margin-top: 5px;" id="printIndivPages">- หน้า</div>
+            </div>
+            <div style="border: 1px solid #000; padding: 10px;">
+                <div>เวลาใช้อ่านรวมทั้งหมด</div>
+                <div style="font-size: 20px; font-weight: bold; margin-top: 5px;" id="printIndivTime">- นาที</div>
+            </div>
+        </div>
+
+        <h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; font-family: 'Sarabun', sans-serif;">📚 รายการหนังสือทั้งหมดที่เคยอ่าน</h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; font-family: 'Sarabun', sans-serif;">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="border: 1px solid #000; padding: 6px; width: 10%;">ครั้งที่</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 18%;">วันที่อ่าน</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 30%;">ชื่อหนังสือ</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 22%;">ผู้แต่ง</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 10%;">หน้า</th>
+                    <th style="border: 1px solid #000; padding: 6px; width: 10%;">คะแนน</th>
+                </tr>
+            </thead>
+            <tbody id="printIndivTableBody">
+                <!-- Injected dynamically -->
+            </tbody>
+        </table>
+        
+        <div style="margin-top: 40px; text-align: right; font-size: 14px; font-family: 'Sarabun', sans-serif;">
+            <p>ลงชื่อ............................................................ ครูผู้ประเมิน</p>
+            <p style="margin-top: 5px;">(............................................................)</p>
+        </div>
+    </div>
+
+    <!-- jsPDF and html2canvas CDNs for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- JS -->
+    <script src="js/supabase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/image-overlay.js"></script>
+    <script src="js/telegram.js"></script>
+    <script src="js/academic-year.js"></script>
+    <script src="js/teacher.js"></script>
+</body>
+</html>
