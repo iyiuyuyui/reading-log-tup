@@ -117,6 +117,7 @@ let selectedStarsValue = 4;
 let activeLevel = 'ม.1';
 let activeRoom = null;
 let activeSummaryRoom = null;
+let activeSummaryLevel = null; // tracks the level selected via room cards
 
 // Real-time cached data for classroom summary dashboard
 let cachedStudents = [];
@@ -135,7 +136,35 @@ let summaryCache = {
 let summaryStudentsUnsubscribe = null;
 let summaryReportsUnsubscribe = null;
 
-undefined
+// ── LocalStorage persistence for summary cache ─────────────────
+const SUMMARY_CACHE_KEY = 'teacherSummaryCache_v2';
+function saveSummaryCacheToStorage() {
+    try {
+        const toSave = {
+            students: summaryCache.students,
+            reports: summaryCache.reports,
+            lastFetched: summaryCache.lastFetched,
+            academicYear: summaryCache.academicYear
+        };
+        localStorage.setItem(SUMMARY_CACHE_KEY, JSON.stringify(toSave));
+    } catch(e) {
+        console.warn('Could not save summary cache to localStorage:', e);
+    }
+}
+function loadSummaryCacheFromStorage() {
+    try {
+        const raw = localStorage.getItem(SUMMARY_CACHE_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.students && parsed.reports) {
+            summaryCache = parsed;
+            return true;
+        }
+    } catch(e) {
+        console.warn('Could not load summary cache from localStorage:', e);
+    }
+    return false;
+}
 
 // Switch between tabs
 function switchTab(tabId) {
@@ -328,17 +357,22 @@ function loadSummaryRooms() {
         const div = document.createElement('div');
         div.className = `class-card ${activeSummaryRoom === r ? 'active' : ''}`;
         div.textContent = roomName;
-        div.onclick = () => selectSummaryClass(r);
+        div.onclick = () => selectSummaryClass(r, activeSummaryLevel);
         summaryRoomsContainer.appendChild(div);
     }
 }
 
 // Select a specific classroom card in the summary tab
-function selectSummaryClass(roomNum) {
+function selectSummaryClass(roomNum, levelOverride) {
     activeSummaryRoom = roomNum;
     const filterLevelSelect = document.getElementById('filterLevel');
     const teacherAssignedLevel = window.teacherAssignedLevel || 'ม.1';
-    const activeSummaryLevel = filterLevelSelect ? filterLevelSelect.value : teacherAssignedLevel;
+    
+    // If a level was passed (from room card), update the filterLevel dropdown
+    if (levelOverride && filterLevelSelect) {
+        filterLevelSelect.value = levelOverride;
+    }
+    activeSummaryLevel = (filterLevelSelect ? filterLevelSelect.value : null) || levelOverride || teacherAssignedLevel;
     
     // Update active class on cards
     const cards = document.querySelectorAll('#summaryRoomsContainer .class-card');
@@ -352,9 +386,11 @@ function selectSummaryClass(roomNum) {
         }
     });
 
-    // Update filterRoom dropdown value
+    // Sync dropdowns to match card selection
     const filterRoomSelect = document.getElementById('filterRoom');
     if (filterRoomSelect) {
+        // Ensure room options are populated for this level before setting value
+        updateSummaryRooms();
         filterRoomSelect.value = roomNum === null ? 'ทั้งหมด' : roomNum.toString();
     }
 
@@ -1225,6 +1261,34 @@ async function preloadSummaryData() {
         });
         return;
     }
+
+    // Restore from localStorage on first load for instant display (data-persistence across deploys)
+    if (!summaryCache.students && loadSummaryCacheFromStorage()) {
+        console.log("Restored summary cache from localStorage (stale-while-revalidate)");
+        // Show old data immediately
+        cachedStudents = [];
+        summaryCache.students.forEach(data => {
+            const sLevel = formatLevel(data.level);
+            const sRoom = data.room || 0;
+            const classroomName = `${sLevel}/${sRoom}`;
+            if (assignedClassrooms.length === 0 || assignedClassrooms.includes(classroomName)) {
+                cachedStudents.push(data);
+            }
+        });
+        cachedLogs = [];
+        summaryCache.reports.forEach(data => {
+            const sLevel = formatLevel(data.studentLevel);
+            const sRoom = data.studentRoom || 0;
+            const classroomName = `${sLevel}/${sRoom}`;
+            if (assignedClassrooms.length === 0 || assignedClassrooms.includes(classroomName)) {
+                cachedLogs.push(data);
+            }
+        });
+        if (document.getElementById('tabSummaryContent').style.display !== 'none') {
+            updateRealtimeSummary();
+        }
+        // Don't return — fall through to fetch fresh data in background
+    }
     
     // Clean up any existing listeners
     if (summaryStudentsUnsubscribe) {
@@ -1237,6 +1301,7 @@ async function preloadSummaryData() {
     }
 
     const now = Date.now();
+
     const cacheTTL = 30000; // 30 seconds
     const targetYear = getActiveYear();
 
@@ -1347,6 +1412,7 @@ async function preloadSummaryData() {
             lastFetched: now,
             academicYear: targetYear
         };
+        saveSummaryCacheToStorage(); // Persist to localStorage
 
         // Filter and update globals
         cachedStudents = [];
@@ -1425,8 +1491,19 @@ function updateRealtimeSummary() {
         filterLevelSelect.value = assignedGrades[0];
     }
     
-    const levelVal = filterLevelSelect ? filterLevelSelect.value : assignedGrades[0];
-    const roomVal = document.getElementById('filterRoom').value;
+    // Use activeSummaryLevel/activeSummaryRoom from card clicks if available, else use dropdowns
+    const levelVal = (activeSummaryLevel && assignedGrades.includes(activeSummaryLevel))
+        ? activeSummaryLevel
+        : (filterLevelSelect ? filterLevelSelect.value : assignedGrades[0]);
+    
+    // roomVal: use activeSummaryRoom if set (from card click), else read dropdown
+    let roomVal;
+    if (activeSummaryRoom !== null && activeSummaryRoom !== undefined) {
+        roomVal = activeSummaryRoom.toString();
+    } else {
+        roomVal = document.getElementById('filterRoom').value;
+    }
+    
     const startDateVal = document.getElementById('filterStartDate').value;
     const endDateVal = document.getElementById('filterEndDate').value;
     const sortVal = document.getElementById('filterSort').value;

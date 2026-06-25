@@ -40,25 +40,7 @@ serve(async (req) => {
       });
     }
 
-    // 1. Calculate passcode hash
-    const computedHash = await sha256(String(passcode).trim());
-
-    // 2. Look up passcode in pending activations
-    const { data: registration, error: regError } = await supabase
-      .from('pending_registrations')
-      .select('*')
-      .eq('student_id', String(studentId).trim())
-      .eq('passcode_hash', computedHash)
-      .single();
-
-    if (regError || !registration) {
-      return new Response(JSON.stringify({ error: "รหัสนักเรียนหรือรหัสเปิดใช้งาน (Passcode) ไม่ถูกต้อง" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
-    // 3. Check if they already have an auth account mapped
+    // ── Step 1: Check if the student account is already activated ──
     const { data: existingMap } = await supabase
       .from('students_auth_map')
       .select('*')
@@ -72,7 +54,63 @@ serve(async (req) => {
       });
     }
 
-    // 4. Create User in auth.users
+    // ── Step 2: Verify student exists in roster ──
+    const { data: studentProfile } = await supabase
+      .from('students')
+      .select('student_id')
+      .eq('student_id', String(studentId).trim())
+      .limit(1)
+      .maybeSingle();
+
+    if (!studentProfile) {
+      return new Response(JSON.stringify({ error: "ไม่พบรหัสนักเรียนในระบบ กรุณาติดต่อครูประจำชั้น" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // ── Step 3: Validate passcode — global first, then per-student ──
+    let passcodeValid = false;
+    let isGlobalPasscode = false;
+
+    // 3a. Check global school passcode from app_settings
+    const { data: globalSetting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'global_activation_passcode')
+      .maybeSingle();
+
+    if (globalSetting && globalSetting.value) {
+      // Compare the submitted passcode with the stored global passcode (plain text comparison)
+      if (String(passcode).trim().toUpperCase() === String(globalSetting.value).trim().toUpperCase()) {
+        passcodeValid = true;
+        isGlobalPasscode = true;
+      }
+    }
+
+    // 3b. If global passcode didn't match, check per-student pending_registrations
+    if (!passcodeValid) {
+      const computedHash = await sha256(String(passcode).trim());
+      const { data: registration } = await supabase
+        .from('pending_registrations')
+        .select('*')
+        .eq('student_id', String(studentId).trim())
+        .eq('passcode_hash', computedHash)
+        .single();
+
+      if (registration) {
+        passcodeValid = true;
+      }
+    }
+
+    if (!passcodeValid) {
+      return new Response(JSON.stringify({ error: "รหัสนักเรียนหรือรหัสเปิดใช้งาน (Passcode) ไม่ถูกต้อง" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // ── Step 4: Create User in auth.users ──
     const email = `${studentId}@student.readinglog`;
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email,
@@ -87,7 +125,7 @@ serve(async (req) => {
 
     const authId = authUser.user.id;
 
-    // 5. Insert into students_auth_map
+    // ── Step 5: Insert into students_auth_map ──
     const { error: mapError } = await supabase
       .from('students_auth_map')
       .insert({
@@ -101,17 +139,19 @@ serve(async (req) => {
       throw new Error(`Auth mapping failed: ${mapError.message}`);
     }
 
-    // 6. Update roster profiles in students table with auth UUID
+    // ── Step 6: Update roster profiles in students table with auth UUID ──
     await supabase
       .from('students')
       .update({ auth_id: authId })
       .eq('student_id', String(studentId).trim());
 
-    // 7. Delete the pending registration row
-    await supabase
-      .from('pending_registrations')
-      .delete()
-      .eq('student_id', String(studentId).trim());
+    // ── Step 7: Only delete per-student passcode row (global passcode stays) ──
+    if (!isGlobalPasscode) {
+      await supabase
+        .from('pending_registrations')
+        .delete()
+        .eq('student_id', String(studentId).trim());
+    }
 
     return new Response(JSON.stringify({ success: true, message: "เปิดใช้งานบัญชีและลงทะเบียนเรียบร้อยแล้ว!" }), {
       status: 200,
